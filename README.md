@@ -4,6 +4,8 @@ https://github.com/user-attachments/assets/815fb4a6-e698-40d3-9c00-b8ac8adaf0d0
 
 An investigation into a CDN bot-mitigation rule that accidentally blocked Googlebot from an e-commerce site's French product pages for 28.5 hours. The project uses synthetic web server logs, Python, PostgreSQL and Grafana to trace the incident and assess its SEO impact.
 
+**1,429** legitimate Googlebot requests blocked · **1,255** French product URLs affected · crawl success rate **94.8% → 0% → 95.3%**
+
 **[Explore the live dashboard](https://grafana.vallorca.com)** (read-only; no account required)
 
 ![Crawl Observability dashboard](docs/dashboard.jpg)
@@ -128,6 +130,12 @@ A fixed random seed makes the generated dataset reproducible.
 - **Unverified SEO crawlers:** AhrefsBot and SemrushBot are identified by user agent only.
 - **Small hourly samples:** each market has around 30–50 legitimate Googlebot requests per hour. A few failures can noticeably change the hourly rate. Isolated degraded cells in the market overview should not be interpreted as separate incidents without further investigation.
 - **Designed scenario:** the incident timeline, traffic patterns and request volumes are defined in the ingestion script. They are not observations from a production system.
+
+### What I would do differently in the analysis
+
+- **Test the queries on real logs.** The incident is written into the ingestion script, so the dashboard can only find what the simulation contains. Production logs would show whether the same queries hold up with noisier traffic and causes nobody planned.
+- **Measure indexing risk per URL, not per request.** The hourly success rate counts requests. A URL whose most recent Googlebot response was an error is a closer indicator of indexing risk than one failed request among many successful ones.
+- **Smooth the hourly rate.** With 30–50 requests per hour per market, a rolling window or a confidence interval would separate real degradation from noise.
 
 ## Run it locally
 

@@ -1,5 +1,7 @@
 # Crawl Observability: when a CDN rule blocked Googlebot
 
+https://github.com/user-attachments/assets/9b558d0e-b925-4d3a-a43e-c432d85f1f03
+
 An investigation into a CDN bot-mitigation rule that accidentally blocked Googlebot from an e-commerce site's French product pages for 28.5 hours. The project uses synthetic web server logs, Python, PostgreSQL and Grafana to trace the incident and assess its SEO impact.
 
 **[Explore the live dashboard](https://joyfulcustard3262.grafana.net/public-dashboards/223fe6ecf3304d8d96b25b87d72ef401)** (read-only; no account required)

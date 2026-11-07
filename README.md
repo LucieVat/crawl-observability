@@ -4,7 +4,7 @@ https://github.com/user-attachments/assets/815fb4a6-e698-40d3-9c00-b8ac8adaf0d0
 
 An investigation into a CDN bot-mitigation rule that accidentally blocked Googlebot from an e-commerce site's French product pages for 28.5 hours. The project uses synthetic web server logs, Python, PostgreSQL and Grafana to trace the incident and assess its SEO impact.
 
-**[Explore the live dashboard](https://joyfulcustard3262.grafana.net/public-dashboards/223fe6ecf3304d8d96b25b87d72ef401)** (read-only; no account required)
+**[Explore the live dashboard](https://grafana.vallorca.com)** (read-only; no account required)
 
 ![Crawl Observability dashboard](docs/dashboard.jpg)
 
@@ -146,19 +146,17 @@ Open http://localhost:3000. Grafana opens the dashboard as its home page in read
 - `ingest` generates and loads the dataset, then exits.
 - `grafana` accesses PostgreSQL through a read-only role. Its data source and dashboard are configured from `grafana/`.
 
-Grafana listens on `127.0.0.1` only. To publish it on a server, put a reverse proxy such as Caddy or Nginx in front of it, and set `GRAFANA_PORT` in `.env` if port 3000 is already taken.
+Grafana listens on `127.0.0.1` only. To publish it on a server, put a reverse proxy such as Caddy or Nginx in front of it, and set `GRAFANA_PORT` in `.env` if port 3000 is already taken. The live dashboard runs this way, on a VPS behind Caddy.
 
 To clear the database and start again, run `docker compose down -v`.
 
 ### Option B: Hosted PostgreSQL and Grafana Cloud
 
-This is the setup used for the live dashboard.
-
-1. Create a PostgreSQL database. The live version uses the free plan from [Neon](https://neon.com).
+1. Create a PostgreSQL database, for example on the free plan from [Neon](https://neon.com).
 2. Add its connection string to `.env` as `DATABASE_URL`, then run `pip install -r requirements.txt` followed by `python ingest/ingest.py`.
 3. Add the database as a PostgreSQL data source in Grafana, then import `grafana/crawl-observability-dashboard.json` under **Dashboards > New > Import**.
 
-Grafana's public shared dashboards only display annotations saved in Grafana itself. For the live dashboard, I recreated the three incident markers as Grafana annotations. The SQL annotations included in the JSON work in a regular Grafana instance.
+Grafana's public shared dashboards only display annotations saved in Grafana itself. To share the dashboard this way, recreate the three incident markers as Grafana annotations. The SQL annotations included in the JSON work in a regular Grafana instance.
 
 ## Repository structure
 

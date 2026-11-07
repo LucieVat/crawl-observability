@@ -1,0 +1,1222 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_POSTGRES",
+      "label": "PostgreSQL (Neon)",
+      "description": "",
+      "type": "datasource",
+      "pluginId": "grafana-postgresql-datasource",
+      "pluginName": "PostgreSQL"
+    }
+  ],
+  "__requires": [
+    {
+      "type": "datasource",
+      "id": "grafana-postgresql-datasource",
+      "name": "PostgreSQL",
+      "version": "1.0.0"
+    }
+  ],
+  "title": "Crawl Observability: CDN incident review",
+  "uid": "crawl-observability-dashboard",
+  "description": "CDN rule blocking Googlebot on French product pages: detection, localisation, root cause and recovery.",
+  "tags": [
+    "seo",
+    "crawl",
+    "logs",
+    "portfolio"
+  ],
+  "timezone": "utc",
+  "graphTooltip": 1,
+  "editable": true,
+  "time": {
+    "from": "2024-03-18T00:00:00.000Z",
+    "to": "2024-03-23T00:00:00.000Z"
+  },
+  "timepicker": {},
+  "refresh": "",
+  "schemaVersion": 39,
+  "version": 1,
+  "templating": {
+    "list": []
+  },
+  "links": [],
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      },
+      {
+        "name": "Latency alert",
+        "enable": true,
+        "iconColor": "yellow",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "${DS_POSTGRES}"
+        },
+        "target": {
+          "refId": "Anno",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT event_time AS time, title AS text, event_type AS tags\nFROM change_events\nWHERE $__timeFilter(event_time)\n  AND event_type = 'alert'\nORDER BY 1"
+        }
+      },
+      {
+        "name": "CDN rule deployed",
+        "enable": true,
+        "iconColor": "red",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "${DS_POSTGRES}"
+        },
+        "target": {
+          "refId": "Anno",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT event_time AS time, title AS text, event_type AS tags\nFROM change_events\nWHERE $__timeFilter(event_time)\n  AND event_type = 'cdn_deploy'\nORDER BY 1"
+        }
+      },
+      {
+        "name": "CDN rule fixed",
+        "enable": true,
+        "iconColor": "green",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "${DS_POSTGRES}"
+        },
+        "target": {
+          "refId": "Anno",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT event_time AS time, title AS text, event_type AS tags\nFROM change_events\nWHERE $__timeFilter(event_time)\n  AND event_type = 'cdn_fix'\nORDER BY 1"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "text",
+      "id": 1,
+      "title": "",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 4
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "### Incident review: Googlebot blocked on www&#46;example&#46;fr product pages\nA bot-mitigation rule (`CDN-FR-0412`) matched the Googlebot user agent without verifying the IP, and blocked Google's crawler for 28.5 hours. Scope: verified Googlebot on French product pages, compared with the German, British and US sites.\n\n<small>Synthetic data: AWS sample web server logs and a simulated crawl layer \u00b7 18 to 22 March 2024, UTC \u00b7 Vertical markers show CDN changes</small>"
+      }
+    },
+    {
+      "type": "row",
+      "id": 2,
+      "title": "Executive overview",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "id": 3,
+      "title": "FR crawl health, latest hour",
+      "description": "Share of legitimate Googlebot requests (IP inside Google's ranges) on French product pages answered with a status below 400, over the latest hour. Sparkline: hourly values over the whole period.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_POSTGRES}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 6,
+        "h": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  $__timeGroupAlias(ts, '1h'),\n  100.0 * count(*) FILTER (WHERE status < 400) / count(*) AS \"Crawl success rate\"\nFROM access_logs\nWHERE $__timeFilter(ts)\n  AND host = 'www.example.fr'\n  AND page_type = 'product'\n  AND bot_family = 'googlebot'\n  AND is_verified_bot\nGROUP BY 1\nORDER BY 1",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${DS_POSTGRES}"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "red"
+              },
+              {
+                "value": 50,
+                "color": "orange"
+              },
+              {
+                "value": 85,
+                "color": "green"
+              }
+            ]
+          },
+          "decimals": 1,
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "textMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      }
+    },
+    {
+      "type": "stat",
+      "id": 4,
+      "title": "Legitimate Googlebot requests blocked",
+      "description": "Requests from verified Google IP ranges rejected by rule CDN-FR-0412 during the selected period.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_POSTGRES}"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 5,
+        "w": 6,
+        "h": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT count(*) AS \"Legitimate Googlebot requests blocked\"\nFROM access_logs\nWHERE $__timeFilter(ts)\n  AND bot_family = 'googlebot'\n  AND is_verified_bot\n  AND cdn_rule_id IS NOT NULL",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${DS_POSTGRES}"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "locale",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "red"
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      }
+    },
+    {
+      "type": "stat",
+      "id": 5,
+      "title": "FR product URLs Google could not crawl",
+      "description": "Distinct French product URLs with at least one blocked legitimate Googlebot request. These URLs may not have been refreshed in Google's index during the incident.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_POSTGRES}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 5,
+        "w": 6,
+        "h": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT count(DISTINCT path) AS \"FR product URLs Google could not crawl\"\nFROM access_logs\nWHERE $__timeFilter(ts)\n  AND bot_family = 'googlebot'\n  AND is_verified_bot\n  AND cdn_rule_id IS NOT NULL",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${DS_POSTGRES}"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "locale",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "red"
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      }
+    },
+    {
+      "type": "stat",
+      "id": 6,
+      "title": "Incident duration",
+      "description": "Time between the deployment of CDN-FR-0412 v1 and the fix (v2), read from the change log.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_POSTGRES}"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 5,
+        "w": 6,
+        "h": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT extract(epoch FROM\n  max(event_time) FILTER (WHERE event_type = 'cdn_fix')\n  - max(event_time) FILTER (WHERE event_type = 'cdn_deploy')\n) AS \"Incident duration\"\nFROM change_events",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${DS_POSTGRES}"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "dthms",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "orange"
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      }
+    },
+    {
+      "type": "row",
+      "id": 7,
+      "title": "Incident investigation",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 11,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "id": 8,
+      "title": "Googlebot crawl success rate, FR product pages",
+      "description": "Hourly share of legitimate Googlebot requests on French product pages answered with a status below 400. Dashed lines: 50 % and 85 % thresholds.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_POSTGRES}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 24,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  $__timeGroupAlias(ts, '1h'),\n  100.0 * count(*) FILTER (WHERE status < 400) / count(*) AS \"Crawl success rate\"\nFROM access_logs\nWHERE $__timeFilter(ts)\n  AND host = 'www.example.fr'\n  AND page_type = 'product'\n  AND bot_family = 'googlebot'\n  AND is_verified_bot\nGROUP BY 1\nORDER BY 1",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${DS_POSTGRES}"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 15,
+            "pointSize": 4,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisSoftMin": 0,
+            "gradientMode": "scheme",
+            "thresholdsStyle": {
+              "mode": "dashed"
+            }
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "red"
+              },
+              {
+                "value": 50,
+                "color": "orange"
+              },
+              {
+                "value": 85,
+                "color": "green"
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "state-timeline",
+      "id": 9,
+      "title": "Googlebot crawl health by market",
+      "description": "Hourly crawl success rate of legitimate Googlebot on product pages, per market. Healthy: 85 % and above. Degraded: 50 to 85 %. Blocked: below 50 %. Hourly samples are small (30 to 50 requests per market): isolated orange cells reflect random errors.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_POSTGRES}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 20,
+        "w": 24,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  $__timeGroupAlias(ts, '1h'),\n  upper(market) AS metric,\n  100.0 * count(*) FILTER (WHERE status < 400) / count(*) AS value\nFROM access_logs\nWHERE $__timeFilter(ts)\n  AND page_type = 'product'\n  AND bot_family = 'googlebot'\n  AND is_verified_bot\nGROUP BY 1, 2\nORDER BY 1, 2",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${DS_POSTGRES}"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "red"
+              },
+              {
+                "value": 50,
+                "color": "orange"
+              },
+              {
+                "value": 85,
+                "color": "green"
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "range",
+              "options": {
+                "from": 0,
+                "to": 49.999,
+                "result": {
+                  "text": "Blocked",
+                  "color": "red",
+                  "index": 0
+                }
+              }
+            },
+            {
+              "type": "range",
+              "options": {
+                "from": 50,
+                "to": 84.999,
+                "result": {
+                  "text": "Degraded",
+                  "color": "orange",
+                  "index": 1
+                }
+              }
+            },
+            {
+              "type": "range",
+              "options": {
+                "from": 85,
+                "to": 100,
+                "result": {
+                  "text": "Healthy",
+                  "color": "green",
+                  "index": 2
+                }
+              }
+            }
+          ],
+          "custom": {
+            "lineWidth": 0,
+            "fillOpacity": 85
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "mergeValues": true,
+        "showValue": "never",
+        "alignValue": "left",
+        "rowHeight": 0.85,
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "type": "row",
+      "id": 10,
+      "title": "Root cause",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 27,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "id": 11,
+      "title": "Googlebot traffic on FR product pages: legitimate vs spoofed",
+      "description": "Requests per hour whose user agent claims to be Googlebot. Legitimate: IP inside Google's published ranges. Spoofed: IP outside them.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_POSTGRES}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 28,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  $__timeGroupAlias(ts, '1h'),\n  CASE WHEN is_verified_bot THEN 'Legitimate Googlebot (verified IP)'\n       ELSE 'Spoofed Googlebot (IP outside Google ranges)' END AS metric,\n  count(*) AS value\nFROM access_logs\nWHERE $__timeFilter(ts)\n  AND host = 'www.example.fr'\n  AND page_type = 'product'\n  AND bot_family = 'googlebot'\nGROUP BY 1, 2\nORDER BY 1, 2",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${DS_POSTGRES}"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 0,
+            "fillOpacity": 85,
+            "pointSize": 4,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisSoftMin": 0,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Legitimate Googlebot (verified IP)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Spoofed Googlebot (IP outside Google ranges)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "purple"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 12,
+      "title": "Origin response time p95 by market, product pages",
+      "description": "95th percentile of response time for product-page requests that reached the origin server: 95 % of requests are answered faster. Requests blocked at the CDN are excluded.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_POSTGRES}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 28,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  $__timeGroupAlias(ts, '1h'),\n  upper(market) AS metric,\n  percentile_cont(0.95) WITHIN GROUP (ORDER BY response_time_ms) AS value\nFROM access_logs\nWHERE $__timeFilter(ts)\n  AND page_type = 'product'\n  AND cdn_rule_id IS NULL\nGROUP BY 1, 2\nORDER BY 1, 2",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${DS_POSTGRES}"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "pointSize": 4,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisSoftMin": 0
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "FR"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "DE"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8AB8FF"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "UK"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#B877D9"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "US"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73BF69"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "table",
+      "id": 13,
+      "title": "Googlebot requests on FR product pages by phase: served vs blocked by CDN-FR-0412",
+      "description": "Requests whose user agent claims to be Googlebot, split by IP verification (legitimate or spoofed) and by outcome (served or blocked by CDN-FR-0412). Phases are read from the change log.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_POSTGRES}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 36,
+        "w": 24,
+        "h": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH ev AS (\n  SELECT max(event_time) FILTER (WHERE event_type = 'cdn_deploy') AS deployed,\n         max(event_time) FILTER (WHERE event_type = 'cdn_fix') AS fixed\n  FROM change_events\n)\nSELECT\n  CASE WHEN ts < ev.deployed THEN '1. Before the rule'\n       WHEN ts < ev.fixed THEN '2. Rule v1 (UA match only)'\n       ELSE '3. Rule v2 (verified-bot exception)' END AS \"Phase\",\n  count(*) FILTER (WHERE is_verified_bot AND cdn_rule_id IS NULL) AS \"Legitimate Googlebot served\",\n  count(*) FILTER (WHERE is_verified_bot AND cdn_rule_id IS NOT NULL) AS \"Legitimate Googlebot blocked\",\n  count(*) FILTER (WHERE NOT is_verified_bot AND cdn_rule_id IS NULL) AS \"Spoofed Googlebot served\",\n  count(*) FILTER (WHERE NOT is_verified_bot AND cdn_rule_id IS NOT NULL) AS \"Spoofed Googlebot blocked\"\nFROM access_logs, ev\nWHERE $__timeFilter(ts)\n  AND host = 'www.example.fr'\n  AND page_type = 'product'\n  AND bot_family = 'googlebot'\nGROUP BY 1\nORDER BY 1",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${DS_POSTGRES}"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "center",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Phase"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "left"
+              },
+              {
+                "id": "custom.width",
+                "value": 300
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Legitimate Googlebot blocked"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "value": null,
+                      "color": "green"
+                    },
+                    {
+                      "value": 1,
+                      "color": "red"
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Spoofed Googlebot served"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "value": null,
+                      "color": "green"
+                    },
+                    {
+                      "value": 1,
+                      "color": "orange"
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false
+        }
+      }
+    },
+    {
+      "type": "row",
+      "id": 14,
+      "title": "Data quality",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 42,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "id": 15,
+      "title": "Latest ingestion run",
+      "description": "Volumes from the latest run of the ingestion script. Duplicates and malformed lines are counted, then excluded.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_POSTGRES}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 43,
+        "w": 10,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT rows_loaded AS \"Rows loaded\",\n       duplicates_dropped AS \"Duplicates dropped\",\n       rejected_lines AS \"Malformed lines rejected\"\nFROM ingest_runs\nORDER BY run_id DESC\nLIMIT 1",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${DS_POSTGRES}"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "locale",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "text"
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      }
+    },
+    {
+      "type": "stat",
+      "id": 16,
+      "title": "Unidentified user agents",
+      "description": "Share of requests with an empty user agent ('' or '-'). They cannot be classified as bot or human.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_POSTGRES}"
+      },
+      "gridPos": {
+        "x": 10,
+        "y": 43,
+        "w": 5,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT 100.0 * count(*) FILTER (WHERE bot_family = 'unknown') / count(*) AS \"Unidentified user agents\"\nFROM access_logs\nWHERE $__timeFilter(ts)",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${DS_POSTGRES}"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "green"
+              },
+              {
+                "value": 1,
+                "color": "orange"
+              },
+              {
+                "value": 5,
+                "color": "red"
+              }
+            ]
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      }
+    },
+    {
+      "type": "stat",
+      "id": 17,
+      "title": "Data loaded",
+      "description": "Last successful run of the ingestion script.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_POSTGRES}"
+      },
+      "gridPos": {
+        "x": 15,
+        "y": 43,
+        "w": 4,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT extract(epoch FROM finished_at) * 1000 AS \"Data loaded\"\nFROM ingest_runs\nORDER BY run_id DESC\nLIMIT 1",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${DS_POSTGRES}"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "dateTimeAsIso",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "text"
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      }
+    },
+    {
+      "type": "table",
+      "id": 18,
+      "title": "Rejected lines by reason",
+      "description": "Raw lines the parser refused, grouped by reason.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_POSTGRES}"
+      },
+      "gridPos": {
+        "x": 19,
+        "y": 43,
+        "w": 5,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT reason AS \"Reason\", count(*) AS \"Lines\"\nFROM ingest_rejects\nGROUP BY 1\nORDER BY 2 DESC",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${DS_POSTGRES}"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      }
+    }
+  ]
+}

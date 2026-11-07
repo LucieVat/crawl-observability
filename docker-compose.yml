@@ -1,0 +1,80 @@
+# Crawl Observability: local stack.
+#   cp .env.example .env   (then set the three passwords)
+#   docker compose up -d
+#   open http://localhost:3000
+#
+# postgres  stores the logs (no port published: only the other containers can reach it)
+# ingest    generates, cleans, enriches and loads the logs, then exits
+# grafana   reads the database with a read-only role; datasource and dashboard are provisioned
+
+name: crawl-observability
+
+services:
+  postgres:
+    image: postgres:16.4-alpine
+    environment:
+      POSTGRES_DB: crawl
+      POSTGRES_USER: crawl
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD:?Set GRAFANA_DB_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crawl -d crawl"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  ingest:
+    image: python:3.12-slim
+    working_dir: /app
+    environment:
+      DATABASE_URL: postgresql://crawl:${POSTGRES_PASSWORD}@postgres:5432/crawl
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+      PIP_ROOT_USER_ACTION: ignore
+    volumes:
+      - ./ingest:/app/ingest:ro
+      - ./vendor:/app/vendor:ro
+      - ./requirements.txt:/app/requirements.txt:ro
+      - ingest-data:/app/data
+    command: sh -c "pip install --quiet --no-cache-dir -r requirements.txt && python -u ingest/ingest.py"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  grafana:
+    image: grafana/grafana-oss:11.6.0
+    ports:
+      - "127.0.0.1:${GRAFANA_PORT:-3000}:3000"   # local only; put a reverse proxy in front to expose it
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Set GRAFANA_ADMIN_PASSWORD in .env}
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://localhost:3000}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/dashboards/crawl-observability.json
+      GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD}
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/etc/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ingest:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  ingest-data:
+  grafana-data:

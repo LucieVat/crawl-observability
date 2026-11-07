@@ -1,0 +1,12 @@
+# Loads every dashboard JSON from /etc/grafana/dashboards (mounted from grafana/dashboards).
+apiVersion: 1
+
+providers:
+  - name: crawl-observability
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    updateIntervalSeconds: 60
+    options:
+      path: /etc/grafana/dashboards
+      foldersFromFilesStructure: false

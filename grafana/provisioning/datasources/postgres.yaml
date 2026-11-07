@@ -1,0 +1,20 @@
+# Grafana reads the database with the read-only role created by
+# docker/postgres-init/01-grafana-reader.sh.
+apiVersion: 1
+
+datasources:
+  - name: PostgreSQL (crawl logs)
+    uid: crawl-postgres
+    type: grafana-postgresql-datasource
+    access: proxy
+    url: postgres:5432
+    user: grafana_reader
+    isDefault: true
+    editable: false
+    jsonData:
+      database: crawl
+      sslmode: disable
+      postgresVersion: 1600
+      timescaledb: false
+    secureJsonData:
+      password: ${GRAFANA_DB_PASSWORD}
